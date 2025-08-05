@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { useRunOnce, VSpacer } from "@/lib/utils";
 import { Container } from "@mui/material";
 import urlJoin from "url-join";
@@ -118,15 +117,14 @@ export default function Page() {
   const [resList, set_resList] = useState<string[]>([]);
   const [isWaiting, set_isWaiting] = useState(false);
 
-  const params = useSearchParams();
-  console.log(params.get("api_root"));
-
-  // const apiRootUrl = "hogehoge";
-  const apiRootUrl = params.get("api_root");
-
   const rec = useRec();
 
   useRunOnce(() => {
+    const params = new URLSearchParams(window.location.search)
+    // const value = params.get('example')
+    const apiRootUrl = params.get("api_root");
+    console.log(apiRootUrl)
+
     if (apiRootUrl == null) {
       console.error("no api root url");
       return;
