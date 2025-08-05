@@ -2,6 +2,110 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useRunOnce, VSpacer } from "@/lib/utils";
+import { Container } from "@mui/material";
+import urlJoin from "url-join";
+
+function useRec() {
+  const stateRef = useRef<{
+    stream: MediaStream | null,
+    recorder: MediaRecorder | null,
+    running: boolean,
+    loopPromise: Promise<void> | null,
+    busy: boolean,
+    onRec: ((blob: Blob) => void)|null,
+  }>({
+    stream: null,
+    recorder: null,
+    running: false,
+    loopPromise: null,
+    busy: false,
+    onRec: null,
+  });
+
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+  const b2dataURL = (blob: Blob) => new Promise(res => {
+    const reader = new FileReader();
+    reader.onloadend = e => res(e.target?.result);
+    reader.readAsDataURL(blob);
+  });
+
+
+  async function getStream() {
+    const state = stateRef.current;
+    if (state.stream && state.stream.active) return state.stream;
+    state.stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    return state.stream;
+  }
+
+  async function recordOnce(ms: number) {
+    const state = stateRef.current;
+    const stream = await getStream();
+    const rec = new MediaRecorder(stream);
+    state.recorder = rec;
+    const chunks: Blob[] = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    const stopped = new Promise<Blob>(res => rec.onstop = () => res(new Blob(chunks)));
+    rec.start();
+    const timer = sleep(ms).then(() => { try { rec.stop(); } catch(e){} });
+    const blob = await stopped;           // ← ここは stop() でも解放される
+    // return b2dataURL(blob);
+    return blob;
+  }
+
+  async function startLoop(periodMs: number, intervalMs: number) {
+    const state = stateRef.current;
+    if (state.running) return;
+    state.running = true;
+
+    state.loopPromise = (async () => {
+      let counter = 0;
+      while (state.running) {
+        // console.log('rec');
+        recordOnce(periodMs).then(async blob => {
+        // wrecordOnce(Math.min(periodMs, (counter + 1) * 1000)).then(async blob => {
+          if (!state.running) return;  // 停止後に余計な送信をしない
+          if (state.busy) return; // 先客がまだいたらあきらめる
+          state.busy = true;
+
+          try {
+            // console.log('send');
+            await state.onRec?.(blob);
+          } catch (e) {
+            console.error(e);
+          }
+
+          state.busy = false;
+
+        });
+        await sleep(intervalMs);
+        counter++;
+      }
+    })();
+
+    return state.loopPromise;
+  }
+
+  function stop() {
+    const state = stateRef.current;
+    state.running = false;
+    // 進行中のレコーダを止める
+    try { if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop(); } catch(e){}
+  }
+
+  function close() {
+    const state = stateRef.current;
+    stop();
+    if (state.stream) {
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
+    }
+  }
+
+  const rec = { startLoop, stop, close, stateRef };
+  return rec
+};
+
 
 export default function Page() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -11,91 +115,105 @@ export default function Page() {
   const [origUrl, setOrigUrl] = useState<string>("");
   const [procUrl, setProcUrl] = useState<string>("");
 
+  const [resList, set_resList] = useState<string[]>([]);
+  const [isWaiting, set_isWaiting] = useState(false);
+
   const params = useSearchParams();
   console.log(params.get("api_root"));
-  const base = params.get("api_root");
 
-  useEffect(() => {
-    (async () => {
-      console.log('hi');
+  // const apiRootUrl = "hogehoge";
+  const apiRootUrl = params.get("api_root");
 
-      const res2 = await fetch(`${base}api/ping`, {
-        method: "GET",
-      });
+  const rec = useRec();
 
-      console.log(res2);
-    })();
+  useRunOnce(() => {
+    if (apiRootUrl == null) {
+      console.error("no api root url");
+      return;
+    }
 
-  }, [])
-
-
-
-
-  // onst base = process.env.NEXT_PUBLIC_COLAB_BASE!; // e.g. https://...-colab.googleusercontent.com/
-  // const base = "https://41029-m-s-s7lm2czmk0g6-a.asia-east1-1.prod.colab.dev/";
-
-  async function start() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
-    chunksRef.current = [];
-    mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
-    mr.onstop = async () => {
-
-      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-      setOrigUrl(URL.createObjectURL(blob));
-      setStatus("送信中...");
-
-      // 1) 解析
-      const fd1 = new FormData();
-      fd1.append("file", blob, "audio.webm");
-      const res1 = await fetch(`${base}api/analyze`, {
+    rec.stateRef.current.onRec = async blob => {
+      console.log('rec');
+      const fd = new FormData();
+      fd.append("file", blob, "audio.webm");
+      const res = await fetch(
+        urlJoin( apiRootUrl, 'api/analyze'), {
         method: "POST",
-        body: fd1,
-        // credentials: "include",   // ★ GoogleログインCookieを送る
-        // mode: "cors",
+        body: fd,
       });
-      if (!res1.ok) throw new Error(`analyze ${res1.status}`);
-      setJson(await res1.json());
+      // console.log(res);
+      if (!res.ok) throw new Error(`analyze ${res.status}`);
 
-      // 2) 加工音声の取得
-      const fd2 = new FormData();
-      fd2.append("file", blob, "audio.webm");
-      const res2 = await fetch(`${base}api/process`, {
-        method: "POST",
-        body: fd2,
-        // credentials: "include",
-        // mode: "cors",
-      });
-      if (!res2.ok) throw new Error(`process ${res2.status}`);
-      const outBlob = await res2.blob();
-      setProcUrl(URL.createObjectURL(outBlob));
-      setStatus("完了");
-    };
-    mediaRecorderRef.current = mr;
-    mr.start();
-    setStatus("録音中…");
-  }
+      // ストリームがない（古い環境）場合のフォールバック
+      if (!res.body) {
+        const text = await res.text();
+        console.warn("No streaming body; full text:", text);
+        return;
+      }
 
-  function stop() {
-    mediaRecorderRef.current?.stop();
-    setStatus("停止");
-  }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let resText = "";
+      const resIndex = resList.length;
+      resList.push(resText);
+      set_resList([...resList]);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // 行区切りでパース
+        let idx;
+        while ((idx = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 1);
+          if (!line) continue;
+          try {
+            const evt = JSON.parse(line);
+            if (evt.delta) {
+              // ここで逐次表示
+              // appendToUI(evt.delta);
+              console.log(evt.delta);
+              resText += evt.delta;
+              resList[resIndex] = resText;
+              
+              set_resList([...resList]);
+            } else if (evt.event === "start") {
+              set_isWaiting(true);
+              // startUI();
+            } else if (evt.event === "end") {
+              set_isWaiting(false);
+              // finishUI();
+            }
+          } catch (e) {
+            console.error("bad line", line, e);
+          }
+        }
+      }
+    }
+
+    rec.startLoop(10_000, 1000);
+  })
+
 
   return (
-    <main style={{ padding: 24 }}>
-      <h2>Mic → Next.js → Colab(Proxy)</h2>
-      <button onClick={start}>録音開始</button>
-      <button onClick={stop}>停止</button>
-      <p>{status}</p>
+    <Container>
+      <VSpacer size={60} />
 
-      <h3>元音声</h3>
-      {origUrl && <audio src={origUrl} controls />}
+      <div>出力結果</div>
+      <div>status: {isWaiting ? "生成中" : "録音中"}</div>
 
-      <h3>処理結果</h3>
-      {procUrl && <audio src={procUrl} controls />}
+      <VSpacer size={40} />
 
-      <h3>JSON</h3>
-      <pre>{json ? JSON.stringify(json, null, 2) : ""}</pre>
-    </main>
+      { resList.map( (res, i) => 
+        <div key={i} style={{marginBottom: 24}}>
+          <div> 入力 {i} </div>
+          <div> {res} </div>
+        </div>)
+
+      }
+    </Container>
   );
 }

@@ -13,9 +13,12 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.0",
     "@mui/material": "^7.3.0",
+    "install": "^0.13.0",
     "next": "15.4.5",
+    "npm": "^11.5.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "url-join": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
