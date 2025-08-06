@@ -82,6 +82,10 @@ export const DeviceModelScene = forwardRef<DeviceModelHandle, {style?: CSSProper
         toneMappingExposure: 1.0,
         // physicallyCorrectLights: true,
       }}
+      onCreated={({camera}) => {
+        camera.lookAt(new THREE.Vector3(0, 1.5, 0));
+        camera.updateProjectionMatrix();
+      }}
       style={{ background: "transparent" }} // ← CSS側も透過
 
     >
@@ -89,7 +93,7 @@ export const DeviceModelScene = forwardRef<DeviceModelHandle, {style?: CSSProper
       {/* <color attach="background" args={["#0e0e10"]} /> */}
 
       {/* IBL: HDRI を環境光＆反射に利用（最重要） */}
-      <Environment files="/hdr/brown_photostudio_02_2k.hdr" background={false} />
+      <Environment files="/hdr/brown_photostudio_02_2k.hdr" background={false} environmentIntensity={0.5} />
 
       {/* 直射ライトは補助程度に（影あり）*/}
       <directionalLight
@@ -105,10 +109,10 @@ export const DeviceModelScene = forwardRef<DeviceModelHandle, {style?: CSSProper
       {/* 柔らかい接地影（見栄えが一気に上がる） */}
       <ContactShadows opacity={0.6} blur={2.5} far={8} resolution={1024} />
 
-      <OrbitControls makeDefault enableDamping target={[0, 1.1, 0]} />
+      {/* <OrbitControls makeDefault enableDamping target={[0, 1.1, 0]} /> */}
     </Canvas>
   </div>
 });
 
 // これがあるとGLBをプリロードできて見た目の体感が良い
-useGLTF.preload(modelPath);
+// useGLTF.preload(modelPath);

@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAppStore } from './store';
 
 export function useASR() {
   const workerRef = useRef<Worker|null>(null);
   const [text, setText] = useState('');
   const onTextRef = useRef<(text: string) => Promise<void> | null>(null)
+
+  const appStore = useAppStore();
+  const appStoreRef = useRef(appStore);
+  appStoreRef.current = appStore;
+
 
   useEffect(() => {
     const worker = new Worker(new URL('@/lib/asr-worker.js', import.meta.url), { type: 'module' });
@@ -17,8 +23,9 @@ export function useASR() {
       await ctx.audioWorklet.addModule('/recorder.worklet.js');
       const node = new AudioWorkletNode(ctx, 'recorder-worklet', { processorOptions: { frameSize: 4000 } }); // 250ms
       node.port.onmessage = (e) => {
+
         const f32 = e.data as Float32Array;
-        worker.postMessage({ type: 'push', pcm: f32, sr: 16000 }, [f32.buffer]);
+        worker.postMessage({ type: 'push', pcm: f32, sr: 16000, }, [f32.buffer]);
       };
       src.connect(node);
     })();
@@ -37,7 +44,10 @@ export function useASR() {
     worker.addEventListener('message', onMsg);
 
     // 1秒ごとに末尾をデコード
-    const t = setInterval(() => worker.postMessage({ type: 'decode' }), 1000);
+    const t = setInterval(() => {
+      const lang = appStoreRef.current.lang;
+      worker.postMessage({ type: 'decode', lang })
+    }, 1000);
 
     return () => { clearInterval(t); worker.terminate(); };
   }, []);

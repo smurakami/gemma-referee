@@ -14,7 +14,7 @@ let ring = new Float32Array(16000 * 30), w = 0;
 
 let busy = false;
 self.onmessage = async (e) => {
-  const { type, pcm, sr } = e.data;
+  const { type, pcm, sr, lang } = e.data;
   if (type === 'push') { // Float32Array(16k mono)
     if (sr !== 16000) return; // 簡略: 16k前提
     if (w + pcm.length > ring.length) w = 0;
@@ -40,12 +40,18 @@ self.onmessage = async (e) => {
         chunk.set(ring.subarray(0, n - first), first);
       }
       const out = await asr(chunk, {
-        language: 'ja',
+        language: lang,
         task: 'transcribe',
         // リアルタイム用に分割＋オーバーラップ
         chunk_length_s: 20,
         stride_length_s: 5,
         return_timestamps: true,
+
+        no_repeat_ngram_size: 4,      // 3〜5 あたりを試す
+        repetition_penalty: 1.15,     // 1.1〜1.3 程度
+        max_new_tokens: 160,          // チャンク1本あたりの上限
+        temperature: 0.2,             // 0.0固定より 0.2〜0.5 で発散しにくい
+
       });
       self.postMessage(out);
     } catch (e) {

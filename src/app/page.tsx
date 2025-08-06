@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { sleep, SoundPlayer, useInterval, useRunOnce, VSpacer } from "@/lib/utils";
-import { Container } from "@mui/material";
+import { HSpacer, HStack, sleep, SoundPlayer, useInterval, useRunOnce, VSpacer } from "@/lib/utils";
+import { Button, ButtonGroup, Container } from "@mui/material";
 import urlJoin from "url-join";
 import { useASR } from "@/lib/use-asr";
 import { fetchStream } from "@/lib/fetch-stream";
 import { DeviceModelHandle, DeviceModelScene } from "@/lib/components/DeviceModelScene";
+import { useAppStore } from "@/lib/store";
 
 
 function parseGemmaResponse(text: string) {
@@ -45,6 +46,8 @@ export default function Page() {
 
   const asr = useASR()
 
+  const appStore = useAppStore()
+
   useRunOnce(() => {
     const params = new URLSearchParams(window.location.search)
     const apiRootUrl = params.get("api_root");
@@ -54,6 +57,7 @@ export default function Page() {
     asr.onTextRef.current = async text => {
       // console.log(text);
       text = stripBracketsAndParens(text);
+      text = text.trim();
       // console.log(text);
       set_asrText(text);
       if (busy) {
@@ -127,17 +131,6 @@ export default function Page() {
       player.play();
   }
 
-  // useEffect(() => {
-  //   // console.log(asrText);
-  //   if (["ちんこ", "チンコ"].some(w => asrText.includes(w))) {
-  //     showRedCard();
-  //   }
-
-  //   if (["うんこ", "ウンコ", "運行"].some(w => asrText.includes(w))) {
-  //     showYellowCard();
-  //   }
-  // }, [ asrText ])
-
   useInterval(33, function() {
     const model = modelRef.current;
     if (!model) return;
@@ -158,6 +151,34 @@ export default function Page() {
 
   return (
     <div>
+      <div style={{position: 'absolute', width: '100%', zIndex: 1}}>
+
+        <VSpacer size={40}></VSpacer>
+
+        <HStack style={{justifyContent: 'end'}}>
+          <ButtonGroup>
+            <Button variant={appStore.lang === "en" ? "contained" : "outlined"}
+              onClick={() => {
+                if (appStore.lang != "en") {
+                  appStore.setLang('en')
+                }
+              } }
+              >EN</Button>
+            <Button variant={appStore.lang === "ja" ? "contained" : "outlined"}
+              onClick={() => {
+                if (appStore.lang != "ja") {
+                  appStore.setLang('ja')
+                }
+
+              } }
+              >JA</Button>
+          </ButtonGroup>
+
+          <HSpacer size={40} />
+        </HStack>
+
+      </div>
+
       <DeviceModelScene ref={modelRef} />
 
       <Container>
