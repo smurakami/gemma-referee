@@ -12,6 +12,7 @@ export type DeviceModelHandle = {
   /** ラジアン指定。例: setLeftArm(Math.PI/3, 0, 0) */
   setLeftArm: (x?: number, y?: number, z?: number) => void;
   setRightArm: (x?: number, y?: number, z?: number) => void;
+  setDeviceRoot: (x?: number, y?: number, z?: number) => void;
 };
 
 const modelPath = "/models/gemma-device.glb";
@@ -30,19 +31,28 @@ export const Model = forwardRef<DeviceModelHandle, {}>((props, ref) => {
     [scene]
   );
 
+  const deviceRoot = useMemo(
+    () => scene.getObjectByName("device_root") as THREE.Object3D | null,
+    [scene]
+  );
+
   // 目標回転（クォータニオンで保持）
-  const leftArmtargetQ = useRef(new THREE.Quaternion());
-  const rightArmtargetQ = useRef(new THREE.Quaternion());
+  const leftArmTargetQ = useRef(new THREE.Quaternion());
+  const rightArmTargetQ = useRef(new THREE.Quaternion());
+  const deviceRootTargetQ = useRef(new THREE.Quaternion());
 
   // 外部から呼べるAPIを公開
   useImperativeHandle(
     ref,
     () => ({
       setLeftArm: (x = 0, y = 0, z = 0) => {
-        leftArmtargetQ.current.setFromEuler(new THREE.Euler(x, y, z, "XYZ"));
+        leftArmTargetQ.current.setFromEuler(new THREE.Euler(x, y, z, "XYZ"));
       },
       setRightArm: (x = 0, y = 0, z = 0) => {
-        rightArmtargetQ.current.setFromEuler(new THREE.Euler(x, y, z, "XYZ"));
+        rightArmTargetQ.current.setFromEuler(new THREE.Euler(x, y, z, "XYZ"));
+      },
+      setDeviceRoot: (x = 0, y = 0, z = 0) => {
+        deviceRootTargetQ.current.setFromEuler(new THREE.Euler(x, y, z, "XYZ"));
       },
     }),
     []
@@ -61,8 +71,9 @@ export const Model = forwardRef<DeviceModelHandle, {}>((props, ref) => {
   useFrame((_, dt) => {
     // 0.18 がダンピング係数（小さいほどゆっくり・大きいほどキビキビ）
     const dumping = 0.18
-    if (leftArm) easing.dampQ(leftArm.quaternion, leftArmtargetQ.current, dumping, dt);
-    if (rightArm) easing.dampQ(rightArm.quaternion, rightArmtargetQ.current, dumping, dt);
+    if (leftArm) easing.dampQ(leftArm.quaternion, leftArmTargetQ.current, dumping, dt);
+    if (rightArm) easing.dampQ(rightArm.quaternion, rightArmTargetQ.current, dumping, dt);
+    if (deviceRoot) easing.dampQ(deviceRoot.quaternion, deviceRootTargetQ.current, dumping, dt);
   });
 
   return <primitive object={scene} />;

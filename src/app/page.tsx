@@ -57,9 +57,16 @@ export default function Page() {
 
   const windowSize = useWindowSize();
 
+  const [mode, setMode] = useState<"referee"|"comment">("referee");
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  const [comment, setComment] = useState("");
+
+  const params = new URLSearchParams(window.location.search)
+  const apiRootUrl = params.get("api_root");
+
   useRunOnce(() => {
-    const params = new URLSearchParams(window.location.search)
-    const apiRootUrl = params.get("api_root");
 
 
     let busy = false;
@@ -70,6 +77,10 @@ export default function Page() {
       // console.log(text);
       set_asrText(text);
       if (busy) {
+        return;
+      }
+
+      if (modeRef.current == "comment") {
         return;
       }
 
@@ -128,7 +139,6 @@ export default function Page() {
 
       set_resList([...resList])
 
-
       busy = false;
     }
   })
@@ -167,7 +177,45 @@ export default function Page() {
     } else {
       model.setRightArm(Math.PI, 0, 0)
     }
+
+    if (mode === "referee") {
+      model.setDeviceRoot(0, 0, 0);
+    } else {
+      model.setDeviceRoot(0, Math.PI, 0);
+    }
+
   })
+
+  async function beginComment(text: string) {
+    let comment = "";
+    setComment(comment);
+    setMode("comment")
+    const lang = appStoreRef.current.lang;
+
+    if (!apiRootUrl) {
+      setMode("referee");
+      return;
+    }
+
+    const stream = fetchStream(
+      urlJoin( apiRootUrl, 'api/comment'), 
+      {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text, lang})
+    });
+
+    let resText = "";
+    // const resTextIndex = resList.length;    
+    // resList.push(resText)
+
+    for await (let delta of stream) {
+      resText += delta;
+      setComment(resText);
+      // resList[resTextIndex] = resText;
+    }
+
+  }
 
   return (
     <div style={{minHeight: windowSize.height}}>
@@ -183,7 +231,7 @@ export default function Page() {
         <VSpacer size={40}></VSpacer>
 
         <HStack style={{justifyContent: 'end'}}>
-          <ButtonGroup>
+          <ButtonGroup color="error">
             <Button variant={appStore.lang === "en" ? "contained" : "outlined"}
               onClick={() => {
                 if (appStore.lang != "en") {
@@ -208,43 +256,75 @@ export default function Page() {
 
       <DeviceModelScene style={{height: 500}} ref={modelRef} />
 
-      <Container>
-        <VSpacer size={60} />
-
-        <div style={{textAlign: 'center', width: '100%', position: 'absolute', zIndex: 1, left: 0, marginTop: -30}}>
-          <div>Input voice</div>
-          <VSpacer size={12} />
-          <div style={{fontSize: 10}}>
-            {asrText}
-          </div>
-        </div>
-
-        <VSpacer size={40} />
-
-
-
-        { [...resList].reverse()
-          .filter( res => res.card != "none")
-          .map( (res, i) => 
-          <div key={i} style={{marginBottom: 24}}>
-            <HStack style={{justifyContent: "start", alignItems: "center"}}>
-            <div> 
-              {res.card == "red" ? "🟥" : "🟨"}
+      { mode == "referee" &&
+        <Container>
+          <div style={{textAlign: 'center', width: '100%', position: 'relative', zIndex: 1, left: 0, marginTop: 10}}>
+            <div>Input voice</div>
+            <VSpacer size={12} />
+            <div style={{fontSize: 10}}>
+              {asrText}
             </div>
-            <HSpacer size={10} />
-            <div>
-               {res.text}
-            </div>
-
-            <div style={{flexGrow: 1}}></div>
-
-            <Button variant="contained" sx={{backgroundColor: res.card == "red" ? "#e74c3c" : "#f1c40f"}}>commentary</Button>
-
-            </HStack>
           </div>
-          )
-        }
-      </Container>
+
+          <VSpacer size={40} />
+
+          { [...resList].reverse()
+            .filter( res => res.card != "none")
+            .map( (res, i) => 
+            <div key={i} style={{
+              marginBottom: 24,
+              backgroundColor: 'white',
+              padding: 16,
+              borderRadius: 24,
+              }}>
+              <HStack style={{justifyContent: "start", alignItems: "center"}}>
+              <div> 
+                {res.card == "red" ? "🟥" : "🟨"}
+              </div>
+              <HSpacer size={10} />
+              <div>
+                {res.text}
+              </div>
+
+              <div style={{flexGrow: 1}}></div>
+
+              <Button variant="contained" sx={{backgroundColor: res.card == "red" ? "#e74c3c" : "#f1c40f"}}
+                onClick={() => beginComment(res.text)}
+              >commentary</Button>
+
+              </HStack>
+            </div>
+            )
+          }
+        </Container>
+      }
+
+      { mode == "comment" &&
+        <Container>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: 16,
+            padding: 32
+          }}>
+            {comment}
+          </div>
+
+            <VSpacer size={16}></VSpacer>
+          <HStack style={{justifyContent: 'end'}}>
+            <Button
+              color="error"
+              variant="contained"
+              onClick={() => {
+                setMode("referee")
+              }}
+            >BACK</Button>
+          </HStack>
+
+
+
+        </Container>
+      }
+
 
     </div>
   );

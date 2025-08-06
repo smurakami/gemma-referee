@@ -66,6 +66,7 @@ export const sleep = (ms: number): Promise<void> => {
 
 export const useInterval = (ms: number, callback: () => void) => {
   const callbackRef = useRef(callback);
+  callbackRef.current = callback
 
   useEffect(() => {
     const timer = setInterval(() => {callbackRef.current()}, ms);
