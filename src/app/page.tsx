@@ -11,21 +11,21 @@ import { useAppStore } from "@/lib/store";
 
 function parseGemmaResponse(text: string) {
   let score = 0;
-  let word = "";
+  // let word = "";
 
   for (let line of text.split("\n")) {
     let match = line.match(/^\s*score:\s*(\d+).*/);
     if (match) {
       score = Number(match[1]);
     }
-    match = line.match(/^\s*word:\s*(.*)/);
-    if (match) {
-      word = match[1];
-    }
+    // match = line.match(/^\s*word:\s*(.*)/);
+    // if (match) {
+    //   word = match[1];
+    // }
   }
 
   return {
-    score, word
+    score,
   }
 }
 
@@ -37,16 +37,21 @@ function stripBracketsAndParens(input: string): string {
 }
 
 export default function Page() {
-  const [resList, set_resList] = useState<{text: string, score: number}[]>([]);
+  const [resList, set_resList] = useState<{text: string, score: number, card: "none"|"yellow"|"red"}[]>([]);
   const [isWaiting, set_isWaiting] = useState(false);
   const modelRef = useRef<DeviceModelHandle>(null);
+
   const redCardUntilRef = useRef(new Date);
   const yellowCardUntilRef = useRef(new Date);
+
+  const prevWhistleRef = useRef(new Date);
+
   const [asrText, set_asrText] = useState("");
 
   const asr = useASR()
-
   const appStore = useAppStore()
+  const appStoreRef = useRef(appStore);
+  appStoreRef.current = appStore;
 
   useRunOnce(() => {
     const params = new URLSearchParams(window.location.search)
@@ -75,12 +80,14 @@ export default function Page() {
 
       busy = true;
 
+      const lang = appStoreRef.current.lang;
+
       const stream = fetchStream(
         urlJoin( apiRootUrl, 'api/analyze_text'), 
         {
           method: "POST",
           headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({text,})
+          body: JSON.stringify({text, lang})
       });
 
       let resText = "";
@@ -94,20 +101,29 @@ export default function Page() {
 
 
       const result = parseGemmaResponse(resText);
-      console.log(result);
+      let card: "red"|"yellow"|"none" = "none"
+
+      // 一定時間、前のホイッスルからあける
+      if (new Date().getTime() - prevWhistleRef.current.getTime() > 7 * 1000) {
+        if (result.score >= 85) {
+          card = "red"
+          showRedCard()
+          prevWhistleRef.current = new Date();
+        } else if (result.score == 70) {
+          card = "yellow";
+          showYellowCard()
+          prevWhistleRef.current = new Date();
+        }
+      }
+
 
       resList.push({
         score: result.score,
-        text: text,
+        text, card,
       });
 
       set_resList([...resList])
 
-      if (result.score >= 85) {
-        showRedCard()
-      } else if (result.score == 70) {
-        showYellowCard()
-      }
 
       busy = false;
     }
@@ -179,32 +195,41 @@ export default function Page() {
 
       </div>
 
-      <DeviceModelScene ref={modelRef} />
+      <DeviceModelScene style={{height: 500}} ref={modelRef} />
 
       <Container>
         <VSpacer size={60} />
 
-        <div>入力音声</div>
-        <div style={{fontSize: 10, color: 'gray'}}>
-          {asrText}
+        <div style={{textAlign: 'center', color: 'gray'}}>
+          <div>Input voice</div>
+          <VSpacer size={12} />
+          <div style={{fontSize: 10, color: 'gray', height: 22}}>
+            {asrText}
+          </div>
         </div>
 
         <VSpacer size={40} />
 
-        {/* <div>出力結果</div>
-        <div>status: {isWaiting ? "生成中" : "録音中"}</div> */}
 
-        <VSpacer size={40} />
 
         { [...resList].reverse()
+          .filter( res => res.card != "none")
           .map( (res, i) => 
           <div key={i} style={{marginBottom: 24}}>
+            <HStack style={{justifyContent: "start", alignItems: "center"}}>
             <div> 
-              {res.score}
+              {res.card == "red" ? "🟥" : "🟨"}
             </div>
+            <HSpacer size={10} />
             <div>
                {res.text}
-               </div>
+            </div>
+
+            <div style={{flexGrow: 1}}></div>
+
+            <Button variant="contained" sx={{backgroundColor: res.card == "red" ? "#e74c3c" : "#f1c40f"}}>commentary</Button>
+
+            </HStack>
           </div>
           )
         }
