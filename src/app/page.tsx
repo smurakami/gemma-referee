@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { sleep, useInterval, useRunOnce, VSpacer } from "@/lib/utils";
+import { sleep, SoundPlayer, useInterval, useRunOnce, VSpacer } from "@/lib/utils";
 import { Container } from "@mui/material";
 import urlJoin from "url-join";
 import { useASR } from "@/lib/use-asr";
@@ -8,33 +8,35 @@ import { fetchStream } from "@/lib/fetch-stream";
 import { DeviceModelHandle, DeviceModelScene } from "@/lib/components/DeviceModelScene";
 
 
-export class SoundPlayer {
-  private audio: HTMLAudioElement;
+function parseGemmaResponse(text: string) {
+  let score = 0;
+  let word = "";
 
-  constructor(src: string) {
-    this.audio = new Audio(src);
-    // ループ再生にするなら以下を有効化
-    // this.audio.loop = true;
+  for (let line of text.split("\n")) {
+    let match = line.match(/^\s*score:\s*(\d+).*/);
+    if (match) {
+      score = Number(match[1]);
+    }
+    match = line.match(/^\s*word:\s*(.*)/);
+    if (match) {
+      word = match[1];
+    }
   }
 
-  play() {
-    // 再生位置を先頭に戻して再生
-    this.audio.currentTime = 0;
-    this.audio.play().catch(err => {
-      console.error("再生エラー:", err);
-    });
-  }
-
-  // 必要なら停止メソッドも
-  stop() {
-    this.audio.pause();
-    this.audio.currentTime = 0;
+  return {
+    score, word
   }
 }
 
+function stripBracketsAndParens(input: string): string {
+  // \[.*?\]  → [...] を非貪欲マッチで
+  // |\(.*?\) → (...) を非貪欲マッチで
+  // g        → 全体からすべて置換
+  return input.replace(/\[.*?\]|\(.*?\)/g, '');
+}
 
 export default function Page() {
-  const [resList, set_resList] = useState<string[]>([]);
+  const [resList, set_resList] = useState<{text: string, score: number}[]>([]);
   const [isWaiting, set_isWaiting] = useState(false);
   const modelRef = useRef<DeviceModelHandle>(null);
   const redCardUntilRef = useRef(new Date);
@@ -50,7 +52,9 @@ export default function Page() {
 
     let busy = false;
     asr.onTextRef.current = async text => {
-      console.log(text);
+      // console.log(text);
+      text = stripBracketsAndParens(text);
+      // console.log(text);
       set_asrText(text);
       if (busy) {
         return;
@@ -58,6 +62,10 @@ export default function Page() {
 
       if (apiRootUrl == null) {
         console.log("no api root url");
+        return;
+      }
+
+      if (!text) {
         return;
       }
 
@@ -72,11 +80,29 @@ export default function Page() {
       });
 
       let resText = "";
-      const resTextIndex = resList.length;    
-      resList.push(resText)
+      // const resTextIndex = resList.length;    
+      // resList.push(resText)
+
       for await (let delta of stream) {
         resText += delta;
-        resList[resTextIndex] = resText;
+        // resList[resTextIndex] = resText;
+      }
+
+
+      const result = parseGemmaResponse(resText);
+      console.log(result);
+
+      resList.push({
+        score: result.score,
+        text: text,
+      });
+
+      set_resList([...resList])
+
+      if (result.score >= 85) {
+        showRedCard()
+      } else if (result.score == 70) {
+        showYellowCard()
       }
 
       busy = false;
@@ -101,16 +127,16 @@ export default function Page() {
       player.play();
   }
 
-  useEffect(() => {
-    // console.log(asrText);
-    if (["ちんこ", "チンコ"].some(w => asrText.includes(w))) {
-      showRedCard();
-    }
+  // useEffect(() => {
+  //   // console.log(asrText);
+  //   if (["ちんこ", "チンコ"].some(w => asrText.includes(w))) {
+  //     showRedCard();
+  //   }
 
-    if (["うんこ", "ウンコ", "運行"].some(w => asrText.includes(w))) {
-      showYellowCard();
-    }
-  }, [ asrText ])
+  //   if (["うんこ", "ウンコ", "運行"].some(w => asrText.includes(w))) {
+  //     showYellowCard();
+  //   }
+  // }, [ asrText ])
 
   useInterval(33, function() {
     const model = modelRef.current;
@@ -137,23 +163,29 @@ export default function Page() {
       <Container>
         <VSpacer size={60} />
 
-        <div>認識結果</div>
+        <div>入力音声</div>
         <div style={{fontSize: 10, color: 'gray'}}>
-          {asr.text}
+          {asrText}
         </div>
 
         <VSpacer size={40} />
 
-        <div>出力結果</div>
-        <div>status: {isWaiting ? "生成中" : "録音中"}</div>
+        {/* <div>出力結果</div>
+        <div>status: {isWaiting ? "生成中" : "録音中"}</div> */}
 
         <VSpacer size={40} />
 
-        { resList.map( (res, i) => 
+        { [...resList].reverse()
+          .map( (res, i) => 
           <div key={i} style={{marginBottom: 24}}>
-            <div> 入力 {i} </div>
-            <div> {res} </div>
-          </div>)
+            <div> 
+              {res.score}
+            </div>
+            <div>
+               {res.text}
+               </div>
+          </div>
+          )
         }
       </Container>
 

@@ -104,3 +104,27 @@ export function LinkWithQuestionResponseType({href, children, style}: {href: str
   const questionResponseType = params.get("questionResponseType");
   return <Link href={{pathname: href, query: { questionResponseType }}} style={style}>{children}</Link>
 }
+
+export class SoundPlayer {
+  private audio: HTMLAudioElement;
+
+  constructor(src: string) {
+    this.audio = new Audio(src);
+    // ループ再生にするなら以下を有効化
+    // this.audio.loop = true;
+  }
+
+  play() {
+    // 再生位置を先頭に戻して再生
+    this.audio.currentTime = 0;
+    this.audio.play().catch(err => {
+      console.error("再生エラー:", err);
+    });
+  }
+
+  // 必要なら停止メソッドも
+  stop() {
+    this.audio.pause();
+    this.audio.currentTime = 0;
+  }
+}
