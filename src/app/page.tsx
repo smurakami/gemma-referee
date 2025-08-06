@@ -63,10 +63,9 @@ export default function Page() {
 
   const [comment, setComment] = useState("");
 
-  const params = new URLSearchParams(window.location.search)
-  const apiRootUrl = params.get("api_root");
-
   useRunOnce(() => {
+    const params = new URLSearchParams(window.location.search)
+    const apiRootUrl = params.get("api_root");
 
 
     let busy = false;
@@ -187,6 +186,9 @@ export default function Page() {
   })
 
   async function beginComment(text: string) {
+    const params = new URLSearchParams(window.location.search)
+    const apiRootUrl = params.get("api_root");
+
     let comment = "";
     setComment(comment);
     setMode("comment")

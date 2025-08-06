@@ -38,8 +38,8 @@ export function VStack(props: {style?: CSSProperties,children?: React.ReactNode}
 
 export function useWindowSize() {
   const [size, setSize] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: 0,
+    height: 0,
   })
 
   useEffect(() => {
@@ -49,6 +49,8 @@ export function useWindowSize() {
         height: window.innerHeight,
       })
     }
+
+    onResize();
 
     window.addEventListener('resize', onResize);
     return () => {
