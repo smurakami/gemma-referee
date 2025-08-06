@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 export function useASR() {
   const workerRef = useRef<Worker|null>(null);
   const [text, setText] = useState('');
-  const onTextRef = useRef<(text: string) => void | null>(null)
+  const onTextRef = useRef<(text: string) => Promise<void> | null>(null)
 
   useEffect(() => {
     const worker = new Worker(new URL('@/lib/asr-worker.js', import.meta.url), { type: 'module' });

@@ -4,24 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRunOnce, VSpacer } from "@/lib/utils";
 import { Container } from "@mui/material";
 import urlJoin from "url-join";
-import { useRec } from "@/lib/use-rec";
+import { useASR } from "@/lib/use-asr";
+
 
 export default function Page() {
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const [status, setStatus] = useState("");
-  const [json, setJson] = useState<any>(null);
-  const [origUrl, setOrigUrl] = useState<string>("");
-  const [procUrl, setProcUrl] = useState<string>("");
-
   const [resList, set_resList] = useState<string[]>([]);
   const [isWaiting, set_isWaiting] = useState(false);
 
-  const rec = useRec();
+  const asr = useASR()
 
   useRunOnce(() => {
     const params = new URLSearchParams(window.location.search)
-    // const value = params.get('example')
     const apiRootUrl = params.get("api_root");
     console.log(apiRootUrl)
 
@@ -30,16 +23,22 @@ export default function Page() {
       return;
     }
 
-    rec.stateRef.current.onRec = async blob => {
-      console.log('rec');
-      const fd = new FormData();
-      fd.append("file", blob, "audio.webm");
+    let busy = false;
+    asr.onTextRef.current = async text => {
+      if (busy) {
+        return;
+      }
+
+      console.log(text);
+
+      busy = true;
       const res = await fetch(
-        urlJoin( apiRootUrl, 'api/analyze'), {
-        method: "POST",
-        body: fd,
-      });
-      // console.log(res);
+        urlJoin( apiRootUrl, 'api/analyze_text'), {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({text,})
+        });
+
       if (!res.ok) throw new Error(`analyze ${res.status}`);
 
       // ストリームがない（古い環境）場合のフォールバック
@@ -90,9 +89,9 @@ export default function Page() {
           }
         }
       }
-    }
 
-    rec.startLoop(10_000, 1000);
+      busy = false;
+    }
   })
 
 
