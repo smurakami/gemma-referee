@@ -1,12 +1,16 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 
+
+
+
+
 export default function Page() {
   const workerRef = useRef<Worker|null>(null);
   const [text, setText] = useState('');
 
   useEffect(() => {
-    const worker = new Worker(new URL('./asr-worker.js', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('@/lib/asr-worker.js', import.meta.url), { type: 'module' });
     workerRef.current = worker;
 
     (async () => {
