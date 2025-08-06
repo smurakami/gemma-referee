@@ -18,10 +18,23 @@ body {
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  /* background: var(--background); */
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 円形グラデーションを「上中央」に配置 */
+  background: radial-gradient(
+    circle at top center,
+    /* 最も明るい黄色 */
+    #FFFFE0 0%,
+    /* 中間色 */
+    #FFF176 50%,
+    /* 少し濃いめの黄色でフェードアウト */
+    #FFD54F 100%
+  );
+  /* グラデーション全体を画面いっぱいに */
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 * {

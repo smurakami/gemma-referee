@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { HSpacer, HStack, sleep, SoundPlayer, useInterval, useRunOnce, VSpacer } from "@/lib/utils";
+import { HSpacer, HStack, sleep, SoundPlayer, useInterval, useRunOnce, useWindowSize, VSpacer } from "@/lib/utils";
 import { Button, ButtonGroup, Container } from "@mui/material";
 import urlJoin from "url-join";
 import { useASR } from "@/lib/use-asr";
 import { fetchStream } from "@/lib/fetch-stream";
 import { DeviceModelHandle, DeviceModelScene } from "@/lib/components/DeviceModelScene";
 import { useAppStore } from "@/lib/store";
+
+import titleImage from "./title.svg";
 
 
 function parseGemmaResponse(text: string) {
@@ -52,6 +54,8 @@ export default function Page() {
   const appStore = useAppStore()
   const appStoreRef = useRef(appStore);
   appStoreRef.current = appStore;
+
+  const windowSize = useWindowSize();
 
   useRunOnce(() => {
     const params = new URLSearchParams(window.location.search)
@@ -166,9 +170,16 @@ export default function Page() {
   })
 
   return (
-    <div>
-      <div style={{position: 'absolute', width: '100%', zIndex: 1}}>
+    <div style={{minHeight: windowSize.height}}>
+      <div style={{position: 'absolute', width: '100%'}}>
+        <VSpacer size={40}></VSpacer>
 
+        <div style={{textAlign: "center", fontSize: 80}}>
+          <img src={titleImage.src} style={{height: 120}} />
+        </div>
+      </div>
+
+      <div style={{position: 'absolute', width: '100%', zIndex: 1}}>
         <VSpacer size={40}></VSpacer>
 
         <HStack style={{justifyContent: 'end'}}>
@@ -200,10 +211,10 @@ export default function Page() {
       <Container>
         <VSpacer size={60} />
 
-        <div style={{textAlign: 'center', color: 'gray'}}>
+        <div style={{textAlign: 'center', width: '100%', position: 'absolute', zIndex: 1, left: 0, marginTop: -30}}>
           <div>Input voice</div>
           <VSpacer size={12} />
-          <div style={{fontSize: 10, color: 'gray', height: 22}}>
+          <div style={{fontSize: 10}}>
             {asrText}
           </div>
         </div>
