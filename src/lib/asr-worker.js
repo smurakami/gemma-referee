@@ -28,7 +28,8 @@ self.onmessage = async (e) => {
 
     try {
       const asr = await load();
-      const tailSec = 20; // 直近20秒を推論
+      // const tailSec = 20; // 直近20秒を推論
+      const tailSec = 10; // 直近20秒を推論
       const n = Math.min(tailSec * 16000, ring.length);
       const start = (w - n + ring.length) % ring.length;
       const chunk = new Float32Array(n);

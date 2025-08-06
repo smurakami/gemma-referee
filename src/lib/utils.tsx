@@ -64,6 +64,20 @@ export const sleep = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
+export const useInterval = (ms: number, callback: () => void) => {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    const timer = setInterval(() => {callbackRef.current()}, ms);
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [])
+
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
 export function useRunOnce(callback: () => void) {
   const hasRun = useRef(false);
 
