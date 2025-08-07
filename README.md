@@ -10,7 +10,7 @@ This is an application that detects and visualizes miscommunication caused by ge
   </a>
 </p>
 
-# How to use demo
+# How to use
 
 Please run Colab Notebook below to watch the demo. You can run python AI server on colab.
 
