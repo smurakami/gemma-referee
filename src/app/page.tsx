@@ -42,6 +42,8 @@ export default function Page() {
   const [resList, set_resList] = useState<{text: string, score: number, card: "none"|"yellow"|"red"}[]>([]);
   const [isWaiting, set_isWaiting] = useState(false);
   const modelRef = useRef<DeviceModelHandle>(null);
+  const [threeModelIsLoading, set_threeModelIsLoading] = useState(true);
+  const [aiModelIsLoading, set_aiModelIsLoading] = useState(true);
 
   const redCardUntilRef = useRef(new Date);
   const yellowCardUntilRef = useRef(new Date);
@@ -70,6 +72,7 @@ export default function Page() {
 
     let busy = false;
     asr.onTextRef.current = async text => {
+      set_aiModelIsLoading(false);
       // console.log(text);
       text = stripBracketsAndParens(text);
       text = text.trim();
@@ -159,6 +162,15 @@ export default function Page() {
       const player = new SoundPlayer("/sounds/whistle.mp3");
       player.play();
   }
+  
+  // watch model info
+  useInterval(33, function() {
+    if (modelRef.current) {
+      set_threeModelIsLoading(false);
+    } else {
+      set_threeModelIsLoading(true);
+    }
+  })
 
   useInterval(33, function() {
     const model = modelRef.current;
@@ -227,6 +239,17 @@ export default function Page() {
         <div style={{textAlign: "center", fontSize: 80}}>
           <img src={titleImage.src} style={{height: 120}} />
         </div>
+
+        { threeModelIsLoading && 
+          <div style={{
+            color: "#e74c3c",
+            fontWeight: "bold",
+            fontSize: 32,
+            textAlign: 'center',
+          }}>
+            3D model is loading...
+          </div>
+        }
       </div>
 
       <div style={{position: 'absolute', width: '100%', zIndex: 1}}>
@@ -263,9 +286,22 @@ export default function Page() {
           <div style={{textAlign: 'center', width: '100%', position: 'relative', zIndex: 1, left: 0, marginTop: 10}}>
             <div>Input voice</div>
             <VSpacer size={12} />
-            <div style={{fontSize: 10}}>
+            <div style={{fontSize: 10, height: 32}}>
               {asrText}
             </div>
+
+            { aiModelIsLoading &&
+
+              <div style={{
+                color: "#e74c3c",
+                fontWeight: "bold",
+                fontSize: 32,
+                textAlign: 'center',
+              }}>
+                Text2speech AI model is loading...
+              </div>
+              }
+
           </div>
 
           <VSpacer size={40} />
