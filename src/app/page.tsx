@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { HSpacer, HStack, sleep, SoundPlayer, useInterval, useRunOnce, useWindowSize, VSpacer } from "@/lib/utils";
-import { Button, ButtonGroup, Container } from "@mui/material";
+import { Button, ButtonGroup, Card, CardContent, Container } from "@mui/material";
 import urlJoin from "url-join";
 import { useASR } from "@/lib/use-asr";
 import { fetchStream } from "@/lib/fetch-stream";
@@ -10,6 +10,7 @@ import { useAppStore } from "@/lib/store";
 
 import titleImage from "./title.svg";
 
+const COLAB_NB_URL = "https://colab.research.google.com/drive/1tdpFzvbsQ0GsrAQ4y4fP0z9O5Fk2Y7_U";
 
 function parseGemmaResponse(text: string) {
   let score = 0;
@@ -65,9 +66,16 @@ export default function Page() {
 
   const [comment, setComment] = useState("");
 
+  const [nbNotConnectedError, set_nbNotConnectedError] = useState(false);
+  const [nbConnectionWarning, set_nbConnectionWarning] = useState(false);
+
   useRunOnce(() => {
     const params = new URLSearchParams(window.location.search)
     const apiRootUrl = params.get("api_root");
+
+    if (!apiRootUrl) {
+      set_nbNotConnectedError(true);
+    }
 
 
     let busy = false;
@@ -97,49 +105,57 @@ export default function Page() {
 
       busy = true;
 
-      const lang = appStoreRef.current.lang;
+      try {
+        const lang = appStoreRef.current.lang;
 
-      const stream = fetchStream(
-        urlJoin( apiRootUrl, 'api/analyze_text'), 
-        {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({text, lang})
-      });
+        const stream = fetchStream(
+          urlJoin( apiRootUrl, 'api/analyze_text'), 
+          {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({text, lang})
+        });
 
-      let resText = "";
-      // const resTextIndex = resList.length;    
-      // resList.push(resText)
+        let resText = "";
+        // const resTextIndex = resList.length;    
+        // resList.push(resText)
 
-      for await (let delta of stream) {
-        resText += delta;
-        // resList[resTextIndex] = resText;
-      }
-
-
-      const result = parseGemmaResponse(resText);
-      let card: "red"|"yellow"|"none" = "none"
-
-      // 一定時間、前のホイッスルからあける
-      if (new Date().getTime() - prevWhistleRef.current.getTime() > 7 * 1000) {
-        if (result.score >= 85) {
-          card = "red"
-          showRedCard()
-          prevWhistleRef.current = new Date();
-        } else if (result.score == 70) {
-          card = "yellow";
-          showYellowCard()
-          prevWhistleRef.current = new Date();
+        for await (let delta of stream) {
+          resText += delta;
+          // resList[resTextIndex] = resText;
         }
+
+
+        const result = parseGemmaResponse(resText);
+        let card: "red"|"yellow"|"none" = "none"
+
+        // 一定時間、前のホイッスルからあける
+        if (new Date().getTime() - prevWhistleRef.current.getTime() > 7 * 1000) {
+          if (result.score >= 85) {
+            card = "red"
+            showRedCard()
+            prevWhistleRef.current = new Date();
+          } else if (result.score == 70) {
+            card = "yellow";
+            showYellowCard()
+            prevWhistleRef.current = new Date();
+          }
+        }
+
+
+        resList.push({
+          score: result.score,
+          text, card,
+        });
+
+        set_resList([...resList])
+
+        set_nbConnectionWarning(false);
+      } catch (e) {
+
+        console.error(e);
+        set_nbConnectionWarning(true);
       }
-
-
-      resList.push({
-        score: result.score,
-        text, card,
-      });
-
-      set_resList([...resList])
 
       busy = false;
     }
@@ -211,22 +227,30 @@ export default function Page() {
       return;
     }
 
-    const stream = fetchStream(
-      urlJoin( apiRootUrl, 'api/comment'), 
-      {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({text, lang})
-    });
+    try {
+      const stream = fetchStream(
+        urlJoin( apiRootUrl, 'api/comment'), 
+        {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({text, lang})
+      });
 
-    let resText = "";
-    // const resTextIndex = resList.length;    
-    // resList.push(resText)
+      let resText = "";
+      // const resTextIndex = resList.length;    
+      // resList.push(resText)
 
-    for await (let delta of stream) {
-      resText += delta;
-      setComment(resText);
-      // resList[resTextIndex] = resText;
+      for await (let delta of stream) {
+        resText += delta;
+        setComment(resText);
+        // resList[resTextIndex] = resText;
+      }
+
+      set_nbConnectionWarning(false);
+    } catch(e) {
+
+      console.error(e);
+      set_nbConnectionWarning(true);
     }
 
   }
@@ -252,6 +276,7 @@ export default function Page() {
         }
       </div>
 
+      {/* JA/EN */}
       <div style={{position: 'absolute', width: '100%', zIndex: 1}}>
         <VSpacer size={40}></VSpacer>
 
@@ -278,6 +303,54 @@ export default function Page() {
         </HStack>
 
       </div>
+
+      {/* Error */}
+
+      { (nbNotConnectedError || nbConnectionWarning) &&
+        <div style={{position: 'absolute', width: '100%', zIndex: 2}}>
+          <VSpacer size={40}></VSpacer>
+
+          <HStack style={{justifyContent: 'begin'}}>
+            <HSpacer size={40} />
+            
+            <Card style={{width: 320}}>
+              <CardContent>
+
+                { nbNotConnectedError ?
+                  <div style={{
+                    color: "#e74c3c",
+                    fontWeight: 'bold',
+                    }}>
+                    <div>Error: Colab notebook is not connected</div>
+                    <VSpacer size={4} />
+                    <div style={{fontWeight: 'normal'}}>Please visit and run the notebook below:</div>
+                    <VSpacer size={4} />
+                    <div style={{wordBreak: 'break-all', textDecoration: 'underline'}}>
+                      <a href={COLAB_NB_URL}>{COLAB_NB_URL}</a>
+                    </div>
+                  </div>
+                :
+                  <div style={{
+                    color: "#e74c3c",
+                    fontWeight: 'bold',
+                    }}>
+                    <div>Warning: Colab notebook connection may have some problem</div>
+                    <VSpacer size={4} />
+                    <div style={{fontWeight: 'normal'}}>Please visit and re-run from server setup:</div>
+                    <VSpacer size={4} />
+                    <div style={{wordBreak: 'break-all', textDecoration: 'underline'}}>
+                      <a href={COLAB_NB_URL}>{COLAB_NB_URL}</a>
+                    </div>
+                  </div>
+                }
+              </CardContent>
+            </Card>
+          </HStack>
+        </div>
+      }
+
+
+      {/* Three */}
 
       <DeviceModelScene style={{height: 500}} ref={modelRef} />
 
